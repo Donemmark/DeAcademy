@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Post Graduate Admission with VOIP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+        }
+        .hidden {
+            display: none;
+        }
+        .call-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-width: 90%;
+        }
+        video {
+            width: 100%;
+            max-width: 300px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="container mx-auto max-w-4xl">
+        <h1 class="text-3xl font-bold text-center mb-6 text-blue-600">Post Graduate Admission Portal with VOIP Interviews</h1>
+
+        <!-- Notifications -->
+        <div id="notifications" class="bg-yellow-100 p-4 rounded-lg mb-4 hidden">
+            <p id="notif-msg"></p>
+        </div>
+
+        <!-- Role Selection -->
+        <div id="role-selection" class="bg-white p-6 rounded-lg shadow-md mb-4">
+            <h2 class="text-xl font-semibold mb-4">Select Your Role</h2>
+            <button id="applicant-btn" class="bg-blue-500 text-white px-4 py-2 rounded mr-2 hover:bg-blue-600">Applicant</button>
+            <button id="admin-btn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Admin</button>
+        </div>
+
+        <!-- Applicant View -->
+        <div id="applicant-view" class="hidden bg-white p-6 rounded-lg shadow-md mb-4">
+            <h2 class="text-xl font-semibold mb-4">Applicant Portal</h2>
+            <form id="application-form" class="mb-4">
+                <div class="grid grid-cols-2 gap-4 mb-2">
+                    <input type="text" id="name" placeholder="Full Name" class="border p-2" required>
+                    <input type="email" id="email" placeholder="Email" class="border p-2" required>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-2">
+                    <input type="text" id="course" placeholder="Desired Course" class="border p-2" required>
+                    <input type="tel" id="phone" placeholder="Phone Number" class="border p-2" required>
+                </div>
+                <div class="mb-2">
+                    <textarea id="about" placeholder="Tell us about yourself" class="border p-2 w-full h-20" required></textarea>
+                </div>
+                <div class="mb-2">
+                    <input type="file" id="resume" class="border p-2 w-full" accept=".pdf,.doc,.docx">
+                </div>
+                <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Submit Application</button>
+            </form>
+            <div id="applicant-status" class="mt-4 p-4 bg-gray-100 rounded"></div>
+            <button id="init-call-btn" class="bg-red-500 text-white px-4 py-2 rounded mt-4 hidden hover:bg-red-600">Join Scheduled VOIP Interview</button>
+            <button id="logout-applicant" class="bg-gray-500 text-white px-4 py-2 rounded ml-2 hover:bg-gray-600">Logout</button>
+            <div id="call-interface" class="hidden mt-4">
+                <div class="call-container">
+                    <h3 class="text-lg font-semibold mb-2">VOIP Interview</h3>
+                    <div class="mb-4">
+                        <video id="local-video" autoplay muted></video>
+                        <video id="remote-video" autoplay></video>
+                    </div>
+                    <p class="mb-2">For signaling in this demo, switch to Admin role and paste/copy signals manually.</p>
+                    <textarea id="signal-data" placeholder="Signal data" class="border p-2 w-full mb-2" rows="4"></textarea>
+                    <button id="send-signal" class="bg-purple-500 text-white px-4 py-2 rounded mr-2">Send Signal</button>
+                    <button id="hangup-btn" class="bg-red-500 text-white px-4 py-2 rounded">End Call</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin View -->
+        <div id="admin-view" class="hidden bg-white p-6 rounded-lg shadow-md mb-4">
+            <h2 class="text-xl font-semibold mb-4">Admin Dashboard</h2>
+            <div id="applicant-list" class="mb-4 overflow-x-auto">
+                <h3 class="text-lg font-medium mb-2">Applications</h3>
+                <table id="applicants-table" class="w-full table-auto border-collapse border border-gray-300">
+                    <thead>
+                        <tr class="bg-gray-200">
+                            <th class="border p-2">ID</th>
+                            <th class="border p-2">Name</th>
+                            <th class="border p-2">Email</th>
+                            <th class="border p-2">Course</th>
+                            <th class="border p-2">Status</th>
+                            <th class="border p-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="mb-4">
+                <input type="number" id="interview-id" placeholder="Applicant ID" class="border p-2 mr-2">
+                <input type="datetime-local" id="interview-time" class="border p-2 mr-2">
+                <button id="schedule-btn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Schedule Interview</button>
+                <button id="reschedule-btn" class="bg-orange-500 text-white px-4 py-2 rounded ml-2 hover:bg-orange-600 hidden">Reschedule Selected</button>
+            </div>
+            <button id="init-call-btn-admin" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 hidden">Start VOIP Interview with Selected Applicant</button>
+            <button id="logout-admin" class="bg-gray-500 text-white px-4 py-2 rounded ml-2 hover:bg-gray-600">Logout</button>
+            <div id="call-interface-admin" class="hidden mt-4">
+                <div class="call-container">
+                    <h3 class="text-lg font-semibold mb-2">Admin VOIP Interview</h3>
+                    <div class="mb-4">
+                        <video id="local-video-admin" autoplay muted></video>
+                        <video id="remote-video-admin" autoplay></video>
+                    </div>
+                    <p class="mb-2">For signaling in this demo, switch to Applicant role and paste/copy signals manually.</p>
+                    <textarea id="signal-data-admin" placeholder="Signal data" class="border p-2 w-full mb-2" rows="4"></textarea>
+                    <button id="send-signal-admin" class="bg-purple-500 text-white px-4 py-2 rounded mr-2">Send Signal</button>
+                    <button id="hangup-btn-admin" class="bg-red-500 text-white px-4 py-2 rounded">End Call</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interview List for Both -->
+        <div id="interview-list" class="bg-white p-6 rounded-lg shadow-md mb-4 hidden">
+            <h2 class="text-xl font-semibold mb-4">Scheduled Interviews</h2>
+            <ul id="interviews-ul" class="list-disc pl-5"></ul>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let applicants = JSON.parse(localStorage.getItem('applicants')) || [];
+        let interviews = JSON.parse(localStorage.getItem('interviews')) || [];
+        let currentApplicantId = localStorage.getItem('currentApplicantId') || null;
+        let selectedApplicant = null;
+        let currentRole = localStorage.getItem('currentRole') || null;
+        let peer = null;
+
+        // WebRTC vars
+        let localStream;
+        let remoteStream;
+
+        // DOM elements
+        const notifMsg = document.getElementById('notif-msg');
+        const notifications = document.getElementById('notifications');
+        const roleSelection = document.getElementById('role-selection');
+        const applicantView = document.getElementById('applicant-view');
+        const adminView = document.getElementById('admin-view');
+        const interviewList = document.getElementById('interview-list');
+        const applicantBtn = document.getElementById('applicant-btn');
+        const adminBtn = document.getElementById('admin-btn');
+        const applicationForm = document.getElementById('application-form');
+        const applicantStatus = document.getElementById('applicant-status');
+        const initCallBtn = document.getElementById('init-call-btn');
+        const initCallBtnAdmin = document.getElementById('init-call-btn-admin');
+        const logoutApplicant = document.getElementById('logout-applicant');
+        const logoutAdmin = document.getElementById('logout-admin');
+        const callInterface = document.getElementById('call-interface');
+        const callInterfaceAdmin = document.getElementById('call-interface-admin');
+        const localVideo = document.getElementById('local-video');
+        const remoteVideo = document.getElementById('remote-video');
+        const localVideoAdmin = document.getElementById('local-video-admin');
+        const remoteVideoAdmin = document.getElementById('remote-video-admin');
+        const hangupBtn = document.getElementById('hangup-btn');
+        const hangupBtnAdmin = document.getElementById('hangup-btn-admin');
+        const signalData = document.getElementById('signal-data');
+        const signalDataAdmin = document.getElementById('signal-data-admin');
+        const sendSignalBtn = document.getElementById('send-signal');
+        const sendSignalBtnAdmin = document.getElementById('send-signal-admin');
+        const applicantsTable = document.getElementById('applicants-table').querySelector('tbody');
+        const interviewsUl = document.getElementById('interviews-ul');
+        const interviewSchedule = document.getElementById('interview-schedule');
+        const scheduleBtn = document.getElementById('schedule-btn');
+        const rescheduleBtn = document.getElementById('reschedule-btn');
+        const interviewId = document.getElementById('interview-id');
+        const interviewTime = document.getElementById('interview-time');
+
+        // Utility functions
+        function showNotification(msg) {
+            notifMsg.textContent = msg;
+            notifications.classList.remove('hidden');
+            setTimeout(() => notifications.classList.add('hidden'), 5000);
+        }
+
+        function saveData() {
+            localStorage.setItem('applicants', JSON.stringify(applicants));
+            localStorage.setItem('interviews', JSON.stringify(interviews));
+        }
+
+        function renderApplicants() {
+            applicantsTable.innerHTML = '';
+            applicants.forEach(applicant => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="border p-2">${applicant.id}</td>
+                    <td class="border p-2">${applicant.name}</td>
+                    <td class="border p-2">${applicant.email}</td>
+                    <td class="border p-2">${applicant.course}</td>
+                    <td class="border p-2">${applicant.status}</td>
+                    <td class="border p-2">
+                        <button class="status-btn bg-yellow-500 text-white px-2 py-1 rounded text-sm mr-1" data-id="${applicant.id}" data-status="Pending">Pending</button>
+                        <button class="status-btn bg-green-500 text-white px-2 py-1 rounded text-sm mr-1" data-id="${applicant.id}" data-status="Approved">Approved</button>
+                        <button class="status-btn bg-red-500 text-white px-2 py-1 rounded text-sm" data-id="${applicant.id}" data-status="Rejected">Rejected</button>
+                        <button class="select-btn bg-blue-500 text-white px-2 py-1 rounded text-sm ml-1" data-id="${applicant.id}">Select</button>
+                    </td>
+                `;
+                applicantsTable.appendChild(row);
+            });
+
+            // Add event listeners for status buttons
+            document.querySelectorAll('.status-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = parseInt(e.target.dataset.id);
+                    const status = e.target.dataset.status;
+                    const applicant = applicants.find(a => a.id === id);
+                    if (applicant) {
+                        applicant.status = status;
+                        saveData();
+                        renderApplicants();
+                        showNotification(`Status updated to ${status}`);
+                    }
+                });
+            });
+
+            // Select applicant for call
+            document.querySelectorAll('.select-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    selectedApplicant = parseInt(e.target.dataset.id);
+                    initCallBtnAdmin.classList.remove('hidden');
+                    showNotification(`Applicant ${selectedApplicant} selected for call`);
+                });
+            });
+        }
+
+        function renderInterviews() {
+            interviewsUl.innerHTML = '';
+            const now = new Date();
+            interviews.forEach(interview => {
+                const li = document.createElement('li');
+                const time = new Date(interview.time);
+                const isUpcoming = time > now;
+                const status = isUpcoming ? 'Scheduled' : 'Past';
+                li.textContent = `Applicant ID: ${interview.id}, Time: ${time.toLocaleString()}, Status: ${status}`;
+                interviewsUl.appendChild(li);
+
+                // Check if interview is now or soon
+                const diffMs = time.getTime() - now.getTime();
+                const diffMins = diffMs / (1000 * 60);
+                if (diffMins >= -5 && diffMins <= 5 && currentRole === 'applicant' && interview.id == currentApplicantId) {
+                    initCallBtn.classList.remove('hidden');
+                }
+            });
+        }
+
+        // Role selection
+        applicantBtn.addEventListener('click', () => {
+            currentRole = 'applicant';
+            localStorage.setItem('currentRole', currentRole);
+            roleSelection.classList.add('hidden');
+            applicantView.classList.remove('hidden');
+            interviewList.classList.remove('hidden');
+            renderInterviews();
+            // Assume current applicant ID for demo (in real app, from auth)
+            if (!currentApplicantId) {
+                currentApplicantId = prompt('Enter your Applicant ID for demo:');
+                localStorage.setItem('currentApplicantId', currentApplicantId);
+            }
+            const app = applicants.find(a => a.id == currentApplicantId);
+            if (app) {
+                applicantStatus.textContent = `Your application status: ${app.status}`;
+            }
+        });
+
+        adminBtn.addEventListener('click', () => {
+            currentRole = 'admin';
+            localStorage.setItem('currentRole', currentRole);
+            roleSelection.classList.add('hidden');
+            adminView.classList.remove('hidden');
+            interviewList.classList.remove('hidden');
+            renderApplicants();
+            renderInterviews();
+        });
+
+        // Logout
+        logoutApplicant.addEventListener('click', () => {
+            currentRole = null;
+            localStorage.removeItem('currentRole');
+            applicantView.classList.add('hidden');
+            interviewList.classList.add('hidden');
+            roleSelection.classList.remove('hidden');
+        });
+
+        logoutAdmin.addEventListener('click', () => {
+            currentRole = null;
+            localStorage.removeItem('currentRole');
+            adminView.classList.add('hidden');
+            interviewList.classList.add('hidden');
+            roleSelection.classList.remove('hidden');
+            initCallBtnAdmin.classList.add('hidden');
+        });
+
+        // Application submission
+        applicationForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const course = document.getElementById('course').value;
+            const phone = document.getElementById('phone').value;
+            const about = document.getElementById('about').value;
+            const resume = document.getElementById('resume').files[0];
+            const id = Date.now();
+            const newApplicant = { id, name, email, course, phone, about, resume: resume ? resume.name : '', status: 'Pending' };
+            applicants.push(newApplicant);
+            saveData();
+            showNotification('Application submitted successfully!');
+            applicationForm.reset();
+            currentApplicantId = id;
+            localStorage.setItem('currentApplicantId', currentApplicantId);
+        });
+
+        // Schedule interview
+        scheduleBtn.addEventListener('click', () => {
+            const id = parseInt(interviewId.value);
+            const time = interviewTime.value;
+            if (id && time && applicants.find(a => a.id === id)) {
+                const existing = interviews.find(i => i.id === id);
+                if (existing) {
+                    interviews.splice(interviews.indexOf(existing), 1);
+                }
+                interviews.push({ id, time });
+                saveData();
+                renderInterviews();
+                showNotification(`Interview scheduled for applicant ${id}`);
+                interviewId.value = '';
+                interviewTime.value = '';
+            } else {
+                showNotification('Invalid applicant ID or time');
+            }
+        });
+
+        rescheduleBtn.addEventListener('click', () => {
+            if (selectedApplicant) {
+                interviewId.value = selectedApplicant;
+                rescheduleBtn.classList.add('hidden');
+            }
+        });
+
+        // VOIP functions
+        async function initStream(isAdmin) {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                const localVideoEl = isAdmin ? localVideoAdmin : localVideo;
+                localVideoEl.srcObject = localStream;
+                return true;
+            } catch (err) {
+                showNotification('Error accessing camera/microphone: ' + err);
+                return false;
+            }
+        }
+
+        function createPeer(isAdmin, stream) {
+            return new SimplePeer({
+                initiator: !isAdmin, // Admin is not initiator
+                stream: stream,
+                trickle: false
+            });
+        }
+
+        // VOIP for Applicant
+        initCallBtn.addEventListener('click', async () => {
+            if (await initStream(false)) {
+                peer = createPeer(false, localStream);
+                callInterface.classList.remove('hidden');
+
+                peer.on('signal', data => {
+                    signalData.value = JSON.stringify(data);
+                    showNotification('Signal data generated. Copy and send to admin.');
+                });
+
+                peer.on('stream', stream => {
+                    remoteVideo.srcObject = stream;
+                });
+
+                peer.on('connect', () => {
+                    showNotification('Connected to admin!');
+                });
+
+                hangupBtn.addEventListener('click', () => {
+                    peer.destroy();
+                    localStream.getTracks().forEach(track => track.stop());
+                    callInterface.classList.add('hidden');
+                });
+            }
+        });
+
+        // Send signal to peer (manual for demo)
+        sendSignalBtn.addEventListener('click', () => {
+            if (peer && signalData.value) {
+                try {
+                    peer.signal(JSON.parse(signalData.value));
+                    signalData.value = '';
+                } catch (e) {
+                    showNotification('Invalid signal data');
+                }
+            }
+        });
+
+        // VOIP for Admin
+        initCallBtnAdmin.addEventListener('click', async () => {
+            if (await initStream(true) && selectedApplicant) {
+                peer = createPeer(true, localStream);
+                callInterfaceAdmin.classList.remove('hidden');
+
+                peer.on('signal', data => {
+                    signalDataAdmin.value = JSON.stringify(data);
+                    showNotification('Signal data generated. Copy and send to applicant.');
+                });
+
+                peer.on('stream', stream => {
+                    remoteVideoAdmin.srcObject = stream;
+                });
+
+                peer.on('connect', () => {
+                    showNotification(`Connected to applicant ${selectedApplicant}!`);
+                });
+
+                hangupBtnAdmin.addEventListener('click', () => {
+                    peer.destroy();
+                    localStream.getTracks().forEach(track => track.stop());
+                    callInterfaceAdmin.classList.add('hidden');
+                });
+            }
+        });
+
+        // Send signal for admin
+        sendSignalBtnAdmin.addEventListener('click', () => {
+            if (peer && signalDataAdmin.value) {
+                try {
+                    peer.signal(JSON.parse(signalDataAdmin.value));
+                    signalDataAdmin.value = '';
+                } catch (e) {
+                    showNotification('Invalid signal data');
+                }
+            }
+        });
+
+        // Initial load if role is set
+        if (currentRole === 'applicant' && currentApplicantId) {
+            roleSelection.classList.add('hidden');
+            applicantView.classList.remove('hidden');
+            interviewList.classList.remove('hidden');
+            renderInterviews();
+            const app = applicants.find(a => a.id == currentApplicantId);
+            if (app) applicantStatus.textContent = `Your application status: ${app.status}`;
+        } else if (currentRole === 'admin') {
+            roleSelection.classList.add('hidden');
+            adminView.classList.remove('hidden');
+            interviewList.classList.remove('hidden');
+            renderApplicants();
+            renderInterviews();
+        }
+    </script>
+</body>
+</html>
+</content>
+</create_file>
